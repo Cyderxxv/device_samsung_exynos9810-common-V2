@@ -27,6 +27,10 @@ DEVICE_PACKAGE_OVERLAYS += \
 
 PRODUCT_ENFORCE_RRO_TARGETS += *
 
+# Acrylic
+PRODUCT_PACKAGES += \
+    libacryl
+
 # APNs
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/configs/apns/apns-conf.xml:$(TARGET_COPY_OUT_SYSTEM)/etc/apns-conf.xml
@@ -111,10 +115,28 @@ PRODUCT_PACKAGES += \
     android.hardware.gatekeeper@1.0-impl:64 \
     android.hardware.gatekeeper@1.0-service
 
+# Gralloc
+PRODUCT_PACKAGES += \
+    libGrallocWrapper \
+    gralloc.exynos9810
+
+# Graphics
+PRODUCT_PACKAGES += \
+    libcsc \
+    libexynosgscaler \
+    libexynosutils \
+    libexynosscaler \
+    libexynosv4l2 \
+    libion_exynos
+
 # Health
 PRODUCT_PACKAGES += \
     android.hardware.health@2.1-impl:64 \
     android.hardware.health@2.1-service
+
+# HWComposer
+PRODUCT_PACKAGES += \
+    hwcomposer.exynos9810
 
 # GNSS
 PRODUCT_PACKAGES += \
@@ -309,6 +331,10 @@ WITH_DEXPREOPT_DEBUG_INFO := false
 PRODUCT_DEXPREOPT_SPEED_APPS += \
     Settings \
     SystemUIGoogle
+
+# Stagefright
+PRODUCT_PACKAGES += \
+    libstagefrighthw
 
 # Thermal
 PRODUCT_PACKAGES += \
