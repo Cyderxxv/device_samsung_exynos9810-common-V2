@@ -388,8 +388,7 @@ static int get_pcm_device_number(void *proxy, void *proxy_stream)
                 pcm_device_number = MMAP_CAPTURE_DEVICE;
                 break;
 
-            case ASTREAM_CAPTURE_FM_TUNER:
-            case ASTREAM_CAPTURE_FM_RECORDING:
+            case ASTREAM_CAPTURE_FM:
                 pcm_device_number = FM_RECORD_DEVICE;
                 break;
 
@@ -767,8 +766,9 @@ static void enable_internal_path(void *proxy, device_type target_device)
 {
     struct audio_proxy *aproxy = proxy;
 
-    if (target_device == DEVICE_SPEAKER || target_device == DEVICE_SPEAKER_AND_HEADSET ||
-        target_device == DEVICE_SPEAKER_AND_HEADPHONE) {
+    if (target_device == DEVICE_SPEAKER || target_device == DEVICE_SPEAKER2 ||
+        target_device == DEVICE_SPEAKER_DUAL || target_device == DEVICE_SPEAKER_DEX ||
+        target_device == DEVICE_SPEAKER_AND_HEADSET || target_device == DEVICE_SPEAKER_AND_HEADPHONE) {
         enable_spkamp_playback(aproxy);
         enable_spkamp_reference(aproxy);
         enable_erap_in(aproxy);
@@ -780,7 +780,8 @@ static void enable_internal_path(void *proxy, device_type target_device)
         enable_btsco_playback(aproxy);
         enable_erap_in(aproxy);
     } else if (target_device == DEVICE_HEADSET || target_device == DEVICE_HEADPHONE ||
-               target_device == DEVICE_EARPIECE|| target_device == DEVICE_CALL_FWD) {
+               target_device == DEVICE_EARPIECE|| target_device == DEVICE_CALL_FWD ||
+               target_device == DEVICE_SPECTRO) {
         if ((aproxy->audio_mode != AUDIO_MODE_IN_CALL) && (target_device == DEVICE_EARPIECE)) {
             enable_spkamp_playback(aproxy);
             enable_spkamp_reference(aproxy);
@@ -801,7 +802,9 @@ static void disable_internal_path(void *proxy, device_type target_device)
 {
     struct audio_proxy *aproxy = proxy;
 
-    if (target_device == DEVICE_SPEAKER || target_device == DEVICE_EARPIECE ||
+    if (target_device == DEVICE_SPEAKER ||
+        target_device == DEVICE_SPEAKER2 || target_device == DEVICE_SPEAKER_DUAL ||
+        target_device == DEVICE_EARPIECE || target_device == DEVICE_SPEAKER_DEX ||
         target_device == DEVICE_SPEAKER_AND_HEADSET || target_device == DEVICE_SPEAKER_AND_HEADPHONE) {
         disable_erap_in(aproxy);
         disable_spkamp_reference(aproxy);
@@ -814,7 +817,8 @@ static void disable_internal_path(void *proxy, device_type target_device)
             disable_spkamp_playback(aproxy);
         }
     } else if (target_device == DEVICE_HEADSET || target_device == DEVICE_HEADPHONE ||
-               target_device == DEVICE_EARPIECE || target_device == DEVICE_CALL_FWD) {
+               target_device == DEVICE_EARPIECE || target_device == DEVICE_CALL_FWD ||
+               target_device == DEVICE_SPECTRO) {
         if (is_active_usage_CPCall(aproxy) || is_active_usage_APCall(aproxy))
             disable_erap_in(aproxy);
         else if (is_usage_Loopback(aproxy->active_playback_ausage) && (target_device == DEVICE_EARPIECE))
@@ -1341,7 +1345,7 @@ static void do_operations_by_playback_route_set(struct audio_proxy *aproxy,
                                                 audio_usage routed_ausage, device_type routed_device)
 {
     /* Open/Close FM Radio PCM node based on Enable/disable */
-    if (routed_ausage != AUSAGE_FM_RADIO_CAPTURE || routed_ausage !=  AUSAGE_FM_RADIO_TUNER) {
+    if (routed_ausage != AUSAGE_FM_RADIO) {
         fmradio_playback_stop(aproxy);
         fmradio_capture_stop(aproxy);
     }
@@ -2814,8 +2818,7 @@ void *proxy_create_capture_stream(void *proxy, int type, int usage, void *config
             }
             break;
 
-        case ASTREAM_CAPTURE_FM_TUNER:
-        case ASTREAM_CAPTURE_FM_RECORDING:
+        case ASTREAM_CAPTURE_FM:
             apstream->sound_card = FM_RECORD_CARD;
             apstream->sound_device = get_pcm_device_number(aproxy, apstream);
             apstream->pcmconfig = pcm_config_fm_record;
@@ -3598,7 +3601,7 @@ bool proxy_set_route(void *proxy, int ausage, int device, int modifier, bool set
             // Set Loopback for Playback Path
             enable_internal_path(aproxy, routed_device);
 
-            if (ausage == AUSAGE_FM_RADIO_CAPTURE || ausage == AUSAGE_FM_RADIO_TUNER) {
+            if (ausage == AUSAGE_FM_RADIO) {
                 /* Open/Close FM Radio PCM node based on Enable/disable */
                 proxy_start_fm_radio(aproxy);
             }
@@ -3888,11 +3891,18 @@ void proxy_set_volume(void *proxy, int volume_type, float left, float right)
         val[1] = (int)(right * COMPRESS_PLAYBACK_VOLUME_MAX);
 
         ctrl = mixer_get_ctl_by_name(aproxy->mixer, OFFLOAD_VOLUME_CONTROL_NAME);
+    } else if (volume_type == VOLUME_TYPE_MMAP) {
+        val[0] = (int)(left * MMAP_PLAYBACK_VOLUME_MAX);
+        val[1] = (int)(right * MMAP_PLAYBACK_VOLUME_MAX);
+
+        ctrl = mixer_get_ctl_by_name(aproxy->mixer, MIXER_CTL_ABOX_MMAP_OUT_VOLUME_CONTROL);
     }
 
     if (ctrl) {
         if (volume_type == VOLUME_TYPE_OFFLOAD)
             ret = mixer_ctl_set_array(ctrl, val, sizeof(val)/sizeof(val[0]));
+        else if (volume_type == VOLUME_TYPE_MMAP)
+            ret = mixer_ctl_set_value(ctrl, 0, val[0]);
 
         if (ret != 0)
             ALOGE("proxy-%s: failed to set Volume", __func__);
@@ -4126,7 +4136,6 @@ int proxy_get_microphones(void *proxy, void *array, int *count)
 
 void proxy_update_uhqa_playback_stream(void *proxy_stream, int hq_mode)
 {
-#if 0
     struct audio_proxy_stream *apstream = (struct audio_proxy_stream *)proxy_stream;
     audio_quality_mode_t high_quality_mode = (audio_quality_mode_t)hq_mode;
 
@@ -4157,7 +4166,6 @@ void proxy_update_uhqa_playback_stream(void *proxy_stream, int hq_mode)
             ALOGVV("proxy-%s: not supported stream",  __func__);
         }
     }
-#endif
 }
 
 void proxy_set_uhqa_stream_config(void *proxy_stream, bool config)
