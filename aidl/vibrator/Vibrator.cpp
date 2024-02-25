@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2023 The LineageOS Project
+ * Copyright (C) 2021 The LineageOS Project
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -105,7 +105,7 @@ ndk::ScopedAStatus Vibrator::on(int32_t timeoutMs, const std::shared_ptr<IVibrat
 
 ndk::ScopedAStatus Vibrator::perform(Effect effect, EffectStrength strength, const std::shared_ptr<IVibratorCallback>& callback, int32_t* _aidl_return) {
     ndk::ScopedAStatus status;
-    float amplitude = strengthToAmplitude(strength, &status);
+    uint32_t amplitude = strengthToAmplitude(strength, &status);
     uint32_t ms = 1000;
 
     if (!status.isOk())
@@ -155,13 +155,20 @@ ndk::ScopedAStatus Vibrator::getSupportedEffects(std::vector<Effect>* _aidl_retu
 ndk::ScopedAStatus Vibrator::setAmplitude(float amplitude) {
     uint32_t intensity;
 
-    if (amplitude <= 0.0f || amplitude > 1.0f) {
-        return ndk::ScopedAStatus(AStatus_fromExceptionCode(EX_ILLEGAL_ARGUMENT));
+    if (amplitude == 0) {
+        return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
     }
 
-    LOG(DEBUG) << "Setting amplitude: " << amplitude;
+    LOG(DEBUG) << "Setting amplitude: " << (uint32_t)amplitude;
 
-    intensity = amplitude * INTENSITY_MAX;
+    intensity = std::lround((amplitude - 1) * INTENSITY_MAX / 254.0);
+    if (intensity > INTENSITY_MAX) {
+        intensity = INTENSITY_MAX;
+    }
+
+    if (intensity == 0) {
+        return ndk::ScopedAStatus::fromExceptionCode(EX_ILLEGAL_ARGUMENT);
+    }
 
     LOG(DEBUG) << "Setting intensity: " << intensity;
 
@@ -261,16 +268,16 @@ ndk::ScopedAStatus Vibrator::activate(uint32_t timeoutMs) {
     return writeNode(VIBRATOR_TIMEOUT_PATH, timeoutMs);
 }
 
-float Vibrator::strengthToAmplitude(EffectStrength strength, ndk::ScopedAStatus* status) {
+uint8_t Vibrator::strengthToAmplitude(EffectStrength strength, ndk::ScopedAStatus* status) {
     *status = ndk::ScopedAStatus::ok();
 
     switch (strength) {
         case EffectStrength::LIGHT:
-            return AMPLITUDE_LIGHT;
+            return 64;
         case EffectStrength::MEDIUM:
-            return AMPLITUDE_MEDIUM;
+            return 128;
         case EffectStrength::STRONG:
-            return AMPLITUDE_STRONG;
+            return 255;
     }
 
     *status = ndk::ScopedAStatus::fromExceptionCode(EX_UNSUPPORTED_OPERATION);
