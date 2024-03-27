@@ -112,3 +112,6 @@ ro.surface_flinger.use_color_management=true
 ### DEVELOPER SETTINGS
 # Disable invocation of oem_lock
 ro.frp.pst=/dev/block/persistent
+
+### AUDIO
+vendor.voice.path.for.pcm.voip=true
